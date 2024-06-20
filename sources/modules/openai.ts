@@ -1,24 +1,24 @@
 import axios from "axios";
-import fs from "fs";
+// import fs from "fs";
 import { keys } from "../keys";
 
-export async function transcribeAudio(audioPath: string) {
-    const audioBase64 = fs.readFileSync(audioPath, { encoding: 'base64' });
-    try {
-        const response = await axios.post("https://api.openai.com/v1/audio/transcriptions", {
-            audio: audioBase64,
-        }, {
-            headers: {
-                'Authorization': `Bearer ${keys.openai}`,  // Replace YOUR_API_KEY with your actual OpenAI API key
-                'Content-Type': 'application/json'
-            },
-        });
-        return response.data;
-    } catch (error) {
-        console.error("Error in transcribeAudio:", error);
-        return null; // or handle error differently
-    }
-}
+// export async function transcribeAudio(audioPath: string) {
+//     const audioBase64 = fs.readFileSync(audioPath, { encoding: 'base64' });
+//     try {
+//         const response = await axios.post("https://api.openai.com/v1/audio/transcriptions", {
+//             audio: audioBase64,
+//         }, {
+//             headers: {
+//                 'Authorization': `Bearer ${keys.openai}`,  // Replace YOUR_API_KEY with your actual OpenAI API key
+//                 'Content-Type': 'application/json'
+//             },
+//         });
+//         return response.data;
+//     } catch (error) {
+//         console.error("Error in transcribeAudio:", error);
+//         return null; // or handle error differently
+//     }
+// }
 
 let audioContext: AudioContext;
 
@@ -27,6 +27,10 @@ export async function startAudio() {
 }
 
 export async function textToSpeech(text: string) {
+    if (audioContext === undefined) {
+        return;
+    }
+
     try {
         const response = await axios.post("https://api.openai.com/v1/audio/speech", {
             input: text,    // Use 'input' instead of 'text'
@@ -58,28 +62,28 @@ export async function textToSpeech(text: string) {
 }
 
 // Function to convert image to base64
-function imageToBase64(path: string) {
-    const image = fs.readFileSync(path, { encoding: 'base64' });
-    return `data:image/jpeg;base64,${image}`; // Adjust the MIME type if necessary (e.g., image/png)
-}
+// function imageToBase64(path: string) {
+//     const image = fs.readFileSync(path, { encoding: 'base64' });
+//     return `data:image/jpeg;base64,${image}`; // Adjust the MIME type if necessary (e.g., image/png)
+// }
 
-export async function describeImage(imagePath: string) {
-    const imageBase64 = imageToBase64(imagePath);
-    try {
-        const response = await axios.post("https://api.openai.com/v1/images/descriptions", {
-            image: imageBase64,
-        }, {
-            headers: {
-                'Authorization': `Bearer ${keys.openai}`,  // Replace YOUR_API_KEY with your actual OpenAI API key
-                'Content-Type': 'application/json'
-            },
-        });
-        return response.data;
-    } catch (error) {
-        console.error("Error in describeImage:", error);
-        return null; // or handle error differently
-    }
-}
+// export async function describeImage(imagePath: string) {
+//     const imageBase64 = imageToBase64(imagePath);
+//     try {
+//         const response = await axios.post("https://api.openai.com/v1/images/descriptions", {
+//             image: imageBase64,
+//         }, {
+//             headers: {
+//                 'Authorization': `Bearer ${keys.openai}`,  // Replace YOUR_API_KEY with your actual OpenAI API key
+//                 'Content-Type': 'application/json'
+//             },
+//         });
+//         return response.data;
+//     } catch (error) {
+//         console.error("Error in describeImage:", error);
+//         return null; // or handle error differently
+//     }
+// }
 
 export async function gptRequest(systemPrompt: string, userPrompt: string) {
     try {

@@ -1,12 +1,13 @@
 import * as React from 'react';
-import { ActivityIndicator, Image, ScrollView, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Image, Platform, ScrollView, Text, TextInput, View } from 'react-native';
 import { rotateImage } from '../modules/imaging';
 import { toBase64Image } from '../utils/base64';
 import { Agent } from '../agent/Agent';
 import { InvalidateSync } from '../utils/invalidateSync';
 import { textToSpeech } from '../modules/openai';
+import { Device } from 'react-native-ble-plx';
 
-function usePhotos(device: BluetoothRemoteGATTServer) {
+function usePhotos(device: BluetoothRemoteGATTServer | Device) {
 
     // Subscribe to device
     const [photos, setPhotos] = React.useState<Uint8Array[]>([]);
@@ -52,29 +53,53 @@ function usePhotos(device: BluetoothRemoteGATTServer) {
             }
 
             // Subscribe for photo updates
-            const service = await device.getPrimaryService('19B10000-E8F2-537E-4F6C-D104768A1214'.toLowerCase());
-            const photoCharacteristic = await service.getCharacteristic('19b10005-e8f2-537e-4f6c-d104768a1214');
-            await photoCharacteristic.startNotifications();
+            let photoCharacteristic = undefined;
+            if (Platform.OS === "web") {
+                const service = await (device as BluetoothRemoteGATTServer).getPrimaryService('19B10000-E8F2-537E-4F6C-D104768A1214'.toLowerCase());
+                photoCharacteristic = await service.getCharacteristic('19b10005-e8f2-537e-4f6c-d104768a1214');
+                await photoCharacteristic.startNotifications();
+                photoCharacteristic.addEventListener('characteristicvaluechanged', (e) => {
+                    let value = (e.target as BluetoothRemoteGATTCharacteristic).value!;
+                    let array = new Uint8Array(value.buffer);
+                    if (array[0] == 0xff && array[1] == 0xff) {
+                        onChunk(null, new Uint8Array());
+                    } else {
+                        let packetId = array[0] + (array[1] << 8);
+                        let packet = array.slice(2);
+                        onChunk(packetId, packet);
+                    }
+                });
+            } else {
+                const service = (await (device as Device).services()).find((s) => s.uuid === '19B10000-E8F2-537E-4F6C-D104768A1214'.toLowerCase())!;
+                photoCharacteristic = (await service.characteristics()).find((c) => c.uuid === '19b10005-e8f2-537e-4f6c-d104768a1214')!;
+                photoCharacteristic.monitor((error, characteristic) => {
+                    if (error) {
+                        console.error('Error monitoring characteristic', error);
+                        return;
+                    }
+                    if (characteristic === null) {
+                        return;
+                    }
+                    let value = characteristic.value!;
+                    let array = new Uint8Array(Buffer.from(value));
+                    if (array[0] == 0xff && array[1] == 0xff) {
+                        onChunk(null, new Uint8Array());
+                    } else {
+                        let packetId = array[0] + (array[1] << 8);
+                        let packet = array.slice(2);
+                        onChunk(packetId, packet);
+                    }
+                });
+            };
             setSubscribed(true);
-            photoCharacteristic.addEventListener('characteristicvaluechanged', (e) => {
-                let value = (e.target as BluetoothRemoteGATTCharacteristic).value!;
-                let array = new Uint8Array(value.buffer);
-                if (array[0] == 0xff && array[1] == 0xff) {
-                    onChunk(null, new Uint8Array());
-                } else {
-                    let packetId = array[0] + (array[1] << 8);
-                    let packet = array.slice(2);
-                    onChunk(packetId, packet);
-                }
-            });
         })();
     }, []);
 
     return [subscribed, photos] as const;
 }
 
-export const DeviceView = React.memo((props: { device: BluetoothRemoteGATTServer }) => {
-    const [subscribed, photos] = usePhotos(props.device);
+export const DeviceView = React.memo(({ device }: { device: BluetoothRemoteGATTServer | Device }) => {
+    const [subscribed, photos] = usePhotos(device);
     const agent = React.useMemo(() => new Agent(), []);
     const agentState = agent.use();
 
